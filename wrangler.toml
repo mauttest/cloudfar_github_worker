@@ -1,4 +1,5 @@
 name = "cloudfar-video-api"
+main = "src/index.js"
 type = "javascript"
 
 account_id = "b54fca7c9ab868d443d2620003d356e1"
