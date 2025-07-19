@@ -1,11 +1,13 @@
 export default {
   async fetch(request) {
     const { searchParams } = new URL(request.url);
-    const video_url = searchParams.get("url");
+    const raw_url = searchParams.get("url");
 
-    if (!video_url) {
+    if (!raw_url) {
       return new Response("❌ Missing URL parameter", { status: 400 });
     }
+
+    const [video_url, quality] = raw_url.split("=");
 
     const api_url = "https://api.easydownloader.app/api-extract/";
     const body = JSON.stringify({
@@ -29,17 +31,28 @@ export default {
 
       const video = data.final_urls[0];
       const links = video.links;
+      const title = video.title || "Unknown";
+      const thumbnail = video.thumbnail || "N/A";
 
-      const best = links.find(link => link.link_url.includes(".mp4") && !link.link_url.includes(".m3u8"));
-
-      if (!best) {
-        return new Response("❌ No MP4 link found", { status: 404 });
+      if (quality) {
+        const match = links.find(x => x.quality.includes(quality));
+        if (match) {
+          return Response.redirect(match.url, 302);
+        } else {
+          return new Response(`❌ Quality ${quality} not found`, { status: 404 });
+        }
       }
 
-      return Response.redirect(best.link_url, 302);
+      let text = `✅ Title: ${title}\n🖼️ Thumbnail: ${thumbnail}\n\n🎬 Direct Downloadable Links:\n\n`;
 
-    } catch (e) {
-      return new Response(`⚠️ Error: ${e.message}`, { status: 500 });
+      for (const link of links) {
+        text += `• ${link.quality} (${link.ext}) → ${link.url}\n`;
+      }
+
+      return new Response(text, { headers: { "Content-Type": "text/plain" } });
+
+    } catch (err) {
+      return new Response("❌ Internal Error: " + err.message, { status: 500 });
     }
   }
 };
