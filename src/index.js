@@ -1,58 +1,57 @@
 export default {
   async fetch(request) {
     const { searchParams } = new URL(request.url);
-    const raw_url = searchParams.get("url");
+    const videoUrl = searchParams.get("url");
 
-    if (!raw_url) {
-      return new Response("❌ Missing URL parameter", { status: 400 });
+    if (!videoUrl) {
+      return new Response("❌ Provide a valid ?url=", { status: 400 });
     }
 
-    const [video_url, quality] = raw_url.split("=");
-
-    const api_url = "https://api.easydownloader.app/api-extract/";
-    const body = JSON.stringify({
-      video_url,
-      pagination: false,
-      key: "175p86550h7m5r3dsiesninx194"
-    });
-
     try {
-      const apiRes = await fetch(api_url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body
+      const res = await fetch(videoUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0',
+        }
       });
+      const html = await res.text();
 
-      const data = await apiRes.json();
+      // Properly decode HTML entities
+      const decode = (str) => new TextDecoder("utf-8").decode(new Uint8Array([...str].map(c => c.charCodeAt(0))));
 
-      if (data.status !== "success") {
-        return new Response("❌ Failed to extract", { status: 400 });
+      const titleMatch = html.match(/<title>(.*?)<\/title>/);
+      const rawTitle = titleMatch?.[1] || 'N/A';
+      const title = decode(rawTitle.replace(/&[^;]+;/g, '')).trim();
+
+      const thumbnailMatch = html.match(/poster="([^"]+)"/);
+      const thumbnail = thumbnailMatch?.[1] || 'N/A';
+
+      const qualities = {};
+      const regex = /"videoUrl":"(https:[^"]+\.mp4)","quality":"(\d+)"/g;
+      let match;
+
+      while ((match = regex.exec(html)) !== null) {
+        const videoLink = decodeURIComponent(match[1]);
+        const quality = match[2];
+        qualities[quality] = videoLink;
       }
 
-      const video = data.final_urls[0];
-      const links = video.links;
-      const title = video.title || "Unknown";
-      const thumbnail = video.thumbnail || "N/A";
+      let output = `✅ Title: ${title}\n`;
+      output += `🖼️ Thumbnail: ${thumbnail}\n\n🎬 Direct Downloadable Links:\n`;
 
-      if (quality) {
-        const match = links.find(x => x.quality.includes(quality));
-        if (match) {
-          return Response.redirect(match.url, 302);
-        } else {
-          return new Response(`❌ Quality ${quality} not found`, { status: 404 });
+      if (Object.keys(qualities).length === 0) {
+        output += `❌ No video links found.\n`;
+      } else {
+        for (const [q, l] of Object.entries(qualities)) {
+          output += `• ${q}p → ${l}\n`;
         }
       }
 
-      let text = `✅ Title: ${title}\n🖼️ Thumbnail: ${thumbnail}\n\n🎬 Direct Downloadable Links:\n\n`;
-
-      for (const link of links) {
-        text += `• ${link.quality} (${link.ext}) → ${link.url}\n`;
-      }
-
-      return new Response(text, { headers: { "Content-Type": "text/plain" } });
+      return new Response(output, {
+        headers: { "Content-Type": "text/plain; charset=utf-8" }
+      });
 
     } catch (err) {
-      return new Response("❌ Internal Error: " + err.message, { status: 500 });
+      return new Response(`❌ Error: ${err.message}`, { status: 500 });
     }
   }
-};
+}
