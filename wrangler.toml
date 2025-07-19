@@ -1,7 +1,5 @@
 name = "cloudfar-video-api"
 main = "src/index.js"
-type = "javascript"
-
+compatibility_date = "2025-07-19"
 account_id = "b54fca7c9ab868d443d2620003d356e1"
 workers_dev = true
-compatibility_date = "2023-04-23"
